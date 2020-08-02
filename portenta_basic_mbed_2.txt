@@ -1,0 +1,124 @@
+#include <Arduino.h>
+#include "mbed.h"
+
+/*
+ * Simple example on how to shar resources
+ * This code builds on portenta_basic_mbed_0.ino and portenta_basic_mbed_0.ino
+ * Board: Arduino Portenta H7 (M7 core)
+ * 
+ * In this scetch, we expand the synchronized LED switching with using a single resource in several threads
+ * The resource we share is the Serial output. Because the Serial is only once available, you have to
+ * synchronize the use of it. We synchronize it with a mbed Mutex (mutual exclusion) https://os.mbed.com/docs/mbed-os/v6.2/apis/mutex.html 
+ * Mutex prevent threads from simultaneously accessing shared resources in an uncoordinated manner.
+ * So, when we yous in our threads the Serial object, we make sure that it is not already being used by another thread.
+ * This is dann by
+ * locking the Mutex
+ * Using the locked resource
+ * unlocking the resource so that an other thread can use it.
+ * When the Mutex is not free when you wanz to lock it, the os lets wait you atomaticallywait until the Mutex
+ * free and you can lock it.
+ * 
+ * Never forget to unlock the Mutex when you do not need anymore the locked resource!
+ * Otherwise, you will walk in a deadlock situation.
+ *
+ * The loop function now also prints an output and uses the Serial Object. So it also must lock/unlock the resource with the Mutex
+ * 
+ * 
+ */
+
+
+
+using namespace mbed;
+using namespace rtos;
+using namespace std;
+
+DigitalOut LD1(PK_5); // red
+DigitalOut LD2(PK_6); // green
+DigitalOut LD3(PK_7); // blue
+
+Thread blinkerThread1;
+Thread blinkerThread2;
+Thread blinkerThread3;
+
+EventFlags event_flags;
+
+Mutex stdio_mutex;
+
+void blinkerR()
+{
+  int actFlag;
+  while (true)
+  {
+    LD1 = !LD1;   // red on
+    stdio_mutex.lock();
+    Serial.println("LED_RED ON");
+    stdio_mutex.unlock();
+    ThisThread::sleep_for(std::chrono::milliseconds(250));
+    LD1 = 1;
+    stdio_mutex.lock();
+    Serial.println("LED_RED OFF");
+    stdio_mutex.unlock();    
+    actFlag = event_flags.get();
+    event_flags.set(actFlag | 1);
+    event_flags.wait_all(4);
+  }
+}
+
+void blinkerG()
+{
+  uint32_t actFlag;
+  while (true)
+  {
+    event_flags.wait_all(1);
+    LD2 = !LD2;   // red on
+    stdio_mutex.lock();
+    Serial.println("LED_GREEN ON");
+    stdio_mutex.unlock();
+    ThisThread::sleep_for(std::chrono::milliseconds(500));
+    LD2 = 1;
+    stdio_mutex.lock();
+    Serial.println("LED_GREEN OFF");
+    stdio_mutex.unlock();
+    actFlag = event_flags.get();
+    event_flags.set(actFlag | 2);
+  }
+}
+
+void blinkerB()
+{
+  int actFlag;
+  while (true)
+  {
+    event_flags.wait_all(2);
+    LD3 = !LD3;   // red on
+    stdio_mutex.lock();
+    Serial.println("LED_BLUE ON");
+    stdio_mutex.unlock();
+    ThisThread::sleep_for(std::chrono::milliseconds(1000));
+    LD3 = 1;
+    stdio_mutex.lock();
+    Serial.println("LED_BLUE OFF");
+    stdio_mutex.unlock();
+    actFlag = event_flags.get();
+    event_flags.set(actFlag | 4);
+  }
+}
+
+void setup(){
+  Serial.begin(9600);
+  pinMode(7, OUTPUT);
+  LD1 = 1;
+  LD2 = 1;
+  LD3 = 1;
+  blinkerThread1.start(blinkerR);
+  blinkerThread2.start(blinkerG);
+  blinkerThread3.start(blinkerB);
+}
+
+void loop()
+{
+  stdio_mutex.lock();
+  Serial.println("LOOP Pass");
+  stdio_mutex.unlock();
+  ThisThread::sleep_for(std::chrono::milliseconds(4000)); 
+}

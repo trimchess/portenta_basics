@@ -1,0 +1,115 @@
+#include <Arduino.h>
+#include "mbed.h" // mbed 1.2.2
+
+
+
+/*
+ * Simple example on how to synchronoze threads
+ * This code builds on portenta_basic_mbed_0.ino
+ * Board: Arduino Portenta H7 (M7 core)
+ * 
+ * In this scetch, we expand the LED switching with some synchronisation
+ * blinkerThread1, immediatly after the start() switches its LED, then sleeps, wakes up,
+ * switches its LED OFF and - that is new! - starts the following thread
+ * and waits for an event from an other thread to restart.
+ * The thread is paused until it is triggered by its start event.
+ * When blinkerThread2 and blinkerThread3 starts, they just wait on their start event.
+ * This is the synchronisation between the two sketch versions. portenta_basic_mbed_0.ino and portenta_basic_mbed_1.ino
+ * You will see the difference when you observe the 3 LED!
+ * Synchronization is done with the mbed EventFlags Class https://os.mbed.com/docs/mbed-os/v6.2/apis/eventflags.html
+ * Create an EventFlags object
+ * EventFlags event_flags;
+ *
+ * A thread can wait until an other thread sets a trigger signal.
+ * event_flags.wait_all(1) This is a wait point until an other thread sets flag 1 of the 32 bit event flags
+ * To set a specific flag, you have to read the flags and then to mask your flag in the flags:
+ * int actFlag
+ * actFlag = event_flags.get();
+ * event_flags.set(actFlag | 1); // mask the desired flag in the flags
+ *
+ * and now you can wait until your flag is set from an other thread.
+ * event_flags.wait_all(4);
+ * 
+ * Why has blinkerThread1 an other structure than the two other threads?
+ * If  blinkerR() starts also with
+ * event_flags.wait_all();
+ * Then each thread wait after its start on an event of an other thread.
+ * But the other thread is also waiting for a trigger.
+ * Each thread waits for an other thread
+ * This ends in a classic deadlock situation.
+ * So, be carefull when you synchronize your threads!
+ * 
+ * The loop function is unused
+ * 
+ * 
+ */
+
+using namespace mbed;
+using namespace rtos;
+
+DigitalOut LD1(PK_5); // red
+DigitalOut LD2(PK_6); // green
+DigitalOut LD3(PK_7); // blue
+
+Thread blinkerThread1;
+Thread blinkerThread2;
+Thread blinkerThread3;
+
+EventFlags event_flags;
+
+void blinkerR()
+{
+  while (true)
+  {
+    LD1 = !LD1;   // red on
+    ThisThread::sleep_for(std::chrono::milliseconds(250));
+    LD1 = 1;
+    // read the flags
+    int actFlag = event_flags.get();
+    // mask the desired flag; it is the flag, blinkerThread3 waits on
+    event_flags.set(actFlag | 1);
+    // wait for the flag set by blinkerThread3
+    event_flags.wait_all(4);
+  }
+}
+
+void blinkerG()
+{
+  while (true)
+  {
+    event_flags.wait_all(1);
+    LD2 = !LD2;   // red on
+    ThisThread::sleep_for(std::chrono::milliseconds(500));
+    LD2 = 1;
+    int actFlag = event_flags.get();
+    event_flags.set(actFlag | 2);
+  }
+}
+
+void blinkerB()
+{
+  while (true)
+  {
+    event_flags.wait_all(2);
+    LD3 = !LD3;   // red on
+    ThisThread::sleep_for(std::chrono::milliseconds(1000));
+    LD3 = 1;
+    int actFlag = event_flags.get();
+    event_flags.set(actFlag | 4);
+  }
+}
+
+void setup()
+{
+  LD1 = 1;
+  LD2 = 1;
+  LD3 = 1;
+  blinkerThread1.start(blinkerR);
+  blinkerThread2.start(blinkerG);
+  blinkerThread3.start(blinkerB);
+}
+
+void loop()
+{
+
+}

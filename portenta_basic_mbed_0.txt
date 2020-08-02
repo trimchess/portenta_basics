@@ -1,0 +1,94 @@
+#include <Arduino.h>
+#include "mbed.h"// 1.2.2
+
+/*
+ * Simple example on how to create and start simple blink threads in mbed os
+ * Board: Arduino Portenta H7 (M7 core)
+ * Reference: https://os.mbed.com/docs/mbed-os/v6.2/apis/index.html
+ * Reference for Threads see: https://os.mbed.com/docs/mbed-os/v6.2/apis/thread.html
+ * 
+ * A Thread is an instance of the Thread class, so you have to instantiate your threads
+ * Thread blinkerThread1;
+ * From now on, the thread waits for action. So first you have to start the waiting thread
+ * 
+ * To run a Thread, use its start() methode by passing it the threads function.
+ * blinkerThread1.start(blinkerR); 
+ * blinkerThread1 executes the blinkerR() function for ever in its while(true){...} loop
+ * 
+ * The loop function is unused
+ * 
+ */
+
+
+using namespace mbed;
+using namespace rtos;
+
+/*
+ * Instantiate 3 LED instances. The LEDs are objects of the mbed LED class DigitalOutBoard: 
+ * Reference: https://os.mbed.com/docs/mbed-os/v6.2/apis/digitalout.html
+ */
+DigitalOut LD1(PK_5); // red
+DigitalOut LD2(PK_6); // green
+DigitalOut LD3(PK_7); // blue
+
+/*
+ * Instantiate 3 Threads
+ */
+Thread blinkerThread1;
+Thread blinkerThread2;
+Thread blinkerThread3;
+
+/*
+ * The thread functions
+ */
+void blinkerR()
+{
+  //Do forever!
+  while (true)
+  {
+    //switch the LED state
+    LD1 = !LD1;   // red on
+
+    // Go sleeping
+    // Remark: When going to sleep, the rtos starts a task scheduling 
+    // so an other blinkerThread will get CPU time to run (non blocking sleep function)
+    // This is the big difference to Arduinos blocking delay function!
+    ThisThread::sleep_for(std::chrono::milliseconds(250));
+  }
+}
+
+void blinkerG()
+{
+  while (true)
+  {
+    LD2 = !LD2;   // red on
+    ThisThread::sleep_for(std::chrono::milliseconds(500));
+  }
+}
+
+void blinkerB()
+{
+  while (true)
+  {
+    LD3 = !LD3;   // red on
+    ThisThread::sleep_for(std::chrono::milliseconds(1000));
+  }
+}
+
+void setup()
+{
+  /*
+   * Switch your LEDs to OFF
+   * start your threads
+   */
+  LD1 = 1;
+  LD2 = 1;
+  LD3 = 1;
+  blinkerThread1.start(blinkerR);
+  blinkerThread2.start(blinkerG);
+  blinkerThread3.start(blinkerB);
+}
+
+void loop()
+{
+}
